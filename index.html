@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APK Studio</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --panel: #111118;
+    --border: #1e1e2e;
+    --accent: #00ff88;
+    --accent2: #0088ff;
+    --warn: #ff6b35;
+    --text: #e0e0f0;
+    --muted: #555570;
+    --surface: #16161f;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--accent2); }
+
+  .badge {
+    font-size: 10px;
+    background: var(--accent);
+    color: #000;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .app-name {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .app-name.loaded { color: var(--accent); }
+
+  /* MAIN LAYOUT */
+  .workspace {
+    display: grid;
+    grid-template-columns: 220px 1fr 1fr;
+    grid-template-rows: 1fr 200px;
+    gap: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* FILE TREE */
+  .file-tree {
+    grid-row: 1 / 3;
+    border-right: 1px solid var(--border);
+    background: var(--panel);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-title {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    padding: 10px 14px 6px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .tree-item {
+    padding: 5px 14px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: all 0.1s;
+    border-left: 2px solid transparent;
+  }
+
+  .tree-item:hover { color: var(--text); background: var(--surface); }
+  .tree-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,255,136,0.05); }
+  .tree-item.folder { color: var(--accent2); font-weight: 600; pointer-events: none; margin-top: 8px; }
+  .tree-item.xml { color: #b48ead; }
+  .tree-item.image { color: #ebcb8b; }
+
+  /* PHONE PREVIEW */
+  .preview-panel {
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  .preview-panel .panel-title {
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .screen-selector {
+    margin-left: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    outline: none;
+  }
+
+  .phone-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  .phone {
+    width: 240px;
+    height: 460px;
+    background: #000;
+    border-radius: 32px;
+    border: 3px solid #333;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 0 40px rgba(0,255,136,0.08), 0 20px 60px rgba(0,0,0,0.8);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .phone-status {
+    background: #111;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 9px;
+    color: #888;
+    flex-shrink: 0;
+  }
+
+  .phone-screen {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #fff;
+    position: relative;
+  }
+
+  .phone-screen::-webkit-scrollbar { display: none; }
+
+  /* Drop zone */
+  .drop-zone {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    background: #0a0a0f;
+  }
+
+  .drop-zone-icon {
+    font-size: 36px;
+    filter: grayscale(0.5);
+  }
+
+  .drop-zone p {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .drop-zone .hint {
+    font-size: 10px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 4px 10px;
+    border-radius: 3px;
+    margin-top: 4px;
+  }
+
+  .drop-zone.dragging { background: rgba(0,255,136,0.05); border: 2px dashed var(--accent); }
+
+  /* SCRIPT EDITOR */
+  .script-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .script-panel .panel-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .run-btn {
+    margin-left: auto;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 3px 10px;
+< truncated lines 249-878 >
+  const padding = getAttr(xmlEl, 'android:padding');
+  if(padding) domEl.style.padding = dpToPx(padding);
+
+  const bg = getAttr(xmlEl, 'android:background');
+  if(bg && bg.startsWith('#')) domEl.style.background = bg;
+}
+
+function renderNode(xmlEl) {
+  const tag = xmlEl.tagName.toLowerCase().replace(/.*\./,'');
+  const id = getAttr(xmlEl, 'android:id')?.replace('@+id/','').replace('@id/','') || null;
+
+  let domEl;
+
+  if(tag === 'linearlayout' || tag === 'linearlayoutcompat') {
+    const orient = getAttr(xmlEl, 'android:orientation');
+    domEl = document.createElement('div');
+    domEl.className = orient === 'horizontal' ? 'a-linear-h' : 'a-linear-v';
+  } else if(tag === 'relativelayout') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-relative';
+  } else if(tag === 'framelayout') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-frame';
+  } else if(tag === 'constraintlayout') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-constraint a-linear-v';
+  } else if(tag === 'scrollview') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-scroll';
+  } else if(tag === 'horizontalscrollview') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-scroll-h';
+  } else if(tag === 'textview') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-textview';
+    const text = resolveString(getAttr(xmlEl,'android:text') || '');
+    domEl.textContent = text || '[ TextView ]';
+    const size = getAttr(xmlEl,'android:textSize');
+    if(size) domEl.style.fontSize = dpToPx(size);
+    const color = getAttr(xmlEl,'android:textColor');
+    if(color?.startsWith('#')) domEl.style.color = color;
+    const bold = getAttr(xmlEl,'android:textStyle');
+    if(bold?.includes('bold')) domEl.style.fontWeight = 'bold';
+    const gravity = getAttr(xmlEl,'android:gravity') || getAttr(xmlEl,'android:textAlignment');
+    if(gravity === 'center' || gravity === 'center_horizontal') domEl.style.textAlign = 'center';
+  } else if(tag === 'button' || tag === 'materialbutton') {
+    domEl = document.createElement('button');
+    domEl.className = 'a-button';
+    domEl.textContent = resolveString(getAttr(xmlEl,'android:text') || 'Button');
+    const bg = getAttr(xmlEl,'android:backgroundTint') || getAttr(xmlEl,'app:backgroundTint');
+    if(bg?.startsWith('#')) domEl.style.background = bg;
+  } else if(tag === 'edittext' || tag === 'textinputedittext') {
+    domEl = document.createElement('input');
+    domEl.className = 'a-edittext';
+    domEl.placeholder = resolveString(getAttr(xmlEl,'android:hint') || '');
+    const inputType = getAttr(xmlEl,'android:inputType');
+    if(inputType?.includes('password')) domEl.type = 'password';
+    else if(inputType?.includes('number')) domEl.type = 'number';
+    else domEl.type = 'text';
+  } else if(tag === 'imageview') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-imageview';
+    const src = getAttr(xmlEl,'android:src') || getAttr(xmlEl,'app:srcCompat');
+    domEl.textContent = src ? `[img: ${src.replace('@drawable/','')}]` : '[ImageView]';
+  } else if(tag === 'toolbar' || tag === 'materialtoolbar') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-toolbar';
+    domEl.textContent = resolveString(getAttr(xmlEl,'android:title') || state.manifest.label || 'App');
+  } else if(tag === 'recyclerview' || tag === 'listview') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-recyclerview';
+    for(let i=0; i<3; i++) {
+      const item = document.createElement('div');
+      item.className = 'a-list-item';
+      item.textContent = `List item ${i+1}`;
+      domEl.appendChild(item);
+    }
+  } else if(tag === 'cardview' || tag === 'materialcardview') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-cardview';
+  } else if(tag === 'checkbox') {
+    domEl = document.createElement('label');
+    domEl.className = 'a-checkbox';
+    domEl.innerHTML = `<input type="checkbox"> ${resolveString(getAttr(xmlEl,'android:text')||'Checkbox')}`;
+  } else if(tag === 'switch' || tag === 'switchcompat' || tag === 'switchmaterial') {
+    domEl = document.createElement('label');
+    domEl.className = 'a-switch';
+    domEl.innerHTML = `<input type="checkbox" role="switch"> ${resolveString(getAttr(xmlEl,'android:text')||'Switch')}`;
+  } else if(tag === 'progressbar') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-progress';
+    const fill = document.createElement('div');
+    fill.className = 'a-progress-fill';
+    domEl.appendChild(fill);
+  } else if(tag === 'view' && getAttr(xmlEl,'android:background') === '#e0e0e0') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-divider';
+  } else if(tag === 'floatingactionbutton' || tag === 'extendedfoatingactionbutton') {
+    domEl = document.createElement('button');
+    domEl.className = 'a-fab';
+    domEl.textContent = '+';
+  } else if(tag === 'bottmnavigationview' || tag === 'bottomnavigationview') {
+    domEl = document.createElement('div');
+    domEl.className = 'a-nav';
+    ['Home','Search','Profile'].forEach((label,i) => {
+      const item = document.createElement('div');
+      item.className = `a-nav-item ${i===0?'active':''}`;
+      item.innerHTML = `<span class="a-nav-icon">${['🏠','🔍','👤'][i]}</span>${label}`;
+      domEl.appendChild(item);
+    });
+  } else if(tag === 'include') {
+    const layout = getAttr(xmlEl,'layout')?.replace('@layout/','');
+    domEl = document.createElement('div');
+    domEl.style.cssText = 'border:1px dashed #ccc;padding:4px;font-size:10px;color:#999;';
+    domEl.textContent = `[include: ${layout||'?'}]`;
+    if(layout && state.layouts[layout]) {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(state.layouts[layout], 'text/xml');
+        const incRoot = doc.documentElement;
+        domEl = renderNode(incRoot);
+      } catch(e) {}
+    }
+  } else if(tag === 'merge') {
+    domEl = document.createElement('div');
+    domEl.style.display = 'contents';
+  } else if(tag === 'viewstub') {
+    domEl = document.createElement('div'); // invisible placeholder
+    domEl.style.display = 'none';
+  } else {
+    // Generic container
+    domEl = document.createElement('div');
+    domEl.style.cssText = 'min-height:4px;width:100%;';
+  }
+
+  if(id) { domEl.id = id; domEl.dataset.aid = id; }
+  domEl.dataset.tag = tag;
+  applySize(domEl, xmlEl);
+  applyMarginPadding(domEl, xmlEl);
+
+  // Visibility
+  const vis = getAttr(xmlEl,'android:visibility');
+  if(vis === 'gone') domEl.style.display = 'none';
+  else if(vis === 'invisible') domEl.style.opacity = '0';
+
+  // Recurse children (skip for leaf elements)
+  if(!['textview','button','materialbutton','edittext','imageview','checkbox','switch','switchcompat'].includes(tag)) {
+    Array.from(xmlEl.children).forEach(child => {
+      try { domEl.appendChild(renderNode(child)); } catch(e) {}
+    });
+  }
+
+  return domEl;
+}
+
+function renderBinaryNotice(name) {
+  const screen = document.getElementById('phoneScreen');
+  screen.innerHTML = `
+    <div style="padding:16px;background:#fff;min-height:100%">
+      <div style="background:#6200ee;color:#fff;padding:12px 16px;font-size:16px;font-weight:500;margin:-0px -0px 16px">${state.manifest.label || state.apkName}</div>
+      <div style="font-size:12px;color:#666;padding:8px;background:#f5f5f5;border-radius:4px;margin-bottom:12px">
+        ⚠️ Layout "${name}" is compiled binary XML. Cannot render visually.
+      </div>
+      <div style="font-size:11px;color:#999">
+        <strong>App Info</strong><br><br>
+        Package: ${state.manifest.package || '?'}<br>
+        Version: ${state.manifest.versionName || '?'}<br>
+        Layouts found: ${Object.keys(state.layouts).length}<br>
+        Total files: ${state.files.length}
+      </div>
+    </div>`;
+}
+
+function renderAppInfo() {
+  const screen = document.getElementById('phoneScreen');
+  screen.innerHTML = `
+    <div style="padding:0;background:#fff;min-height:100%">
+      <div style="background:#6200ee;color:#fff;padding:12px 16px;font-size:16px;font-weight:500">${state.manifest.label || state.apkName}</div>
+      <div style="padding:16px;font-size:12px;color:#333;line-height:2">
+        <strong>Package:</strong> ${state.manifest.package || '?'}<br>
+        <strong>Version:</strong> ${state.manifest.versionName || '?'}<br>
+        <strong>Total files:</strong> ${state.files.length}<br>
+        <strong>Layouts:</strong> ${Object.keys(state.layouts).length}<br>
+      </div>
+      <div style="padding:16px;font-size:11px;color:#999">
+        Note: Most production APKs use compiled binary XML. Text XML layouts are more common in debug/unsigned builds.
+      </div>
+    </div>`;
+}
+
+// ─── Scripting API ────────────────────────────────────────────────────────────
+const apk = {
+  getScreen: (name) => state.layouts[name] || null,
+  getManifest: () => ({ ...state.manifest }),
+  get elements() {
+    return Array.from(document.getElementById('phoneScreen').querySelectorAll('*'));
+  },
+  find: (selector) => {
+    try { return Array.from(document.getElementById('phoneScreen').querySelectorAll(selector)); }
+    catch(e) { return []; }
+  },
+  setAttr: (el, attr, val) => {
+    if(!el) return;
+    const els = Array.isArray(el) ? el : [el];
+    els.forEach(e => { e[attr] = val; });
+  },
+  getString: (key) => state.strings[key] || null,
+  getStrings: () => ({ ...state.strings }),
+  highlight: (selector) => {
+    document.getElementById('phoneScreen').querySelectorAll('.selected-el').forEach(x=>x.classList.remove('selected-el'));
+    apk.find(selector).forEach(el => el.classList.add('selected-el'));
+  },
+  listScreens: () => Object.keys(state.layouts),
+  switchScreen: (name) => switchScreen(name),
+};
+
+// Override console for script sandbox
+const sandboxConsole = {
+  log: (...args) => log(args.join(' '), 'info'),
+  error: (...args) => log(args.join(' '), 'error'),
+  warn: (...args) => log(args.join(' '), 'warn'),
+  info: (...args) => log(args.join(' '), 'info'),
+};
+
+function runScript() {
+  const code = document.getElementById('scriptInput').value.trim();
+  if(!code) { log('No script to run.', 'warn'); return; }
+  log('Running script...', 'system');
+  try {
+    const fn = new Function('apk','console', code);
+    fn(apk, sandboxConsole);
+  } catch(err) {
+    log(`Script error: ${err.message}`, 'error');
+  }
+}
+
+function clearScript() {
+  document.getElementById('scriptInput').value = '';
+}
+
+// Keyboard shortcut: Ctrl/Cmd+Enter to run
+document.getElementById('scriptInput').addEventListener('keydown', e => {
+  if((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runScript(); }
+});
+</script>
+</body>
+  </html>
