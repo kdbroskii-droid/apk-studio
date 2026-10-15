@@ -1,0 +1,6 @@
+node_modules/
+bridge/.bridge-token
+bridge/.requests/
+workspace/
+.env
+.DS_Store
