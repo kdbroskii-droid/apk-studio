@@ -48,78 +48,132 @@ class MainActivity : Activity() {
     }
 
     private fun buildUi() {
-        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(16, 14, 16, 12) }
-        val scroll = ScrollView(this)
-        val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(18), dp(12), dp(18), dp(12)) }
+        val scroll = ScrollView(this).apply { clipToPadding = false }
+        val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, dp(12)) }
         scroll.addView(body)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        body.addView(TextView(this).apply { text = "APK STUDIO"; textSize = 26f; setTextColor(blue); setTypeface(null, 1) })
-        body.addView(TextView(this).apply { text = "Your Android project workshop"; textSize = 13f; setTextColor(muted); setPadding(0, 0, 0, 14) })
-        body.addView(button("Import source ZIP or APK") { openImport() })
-        projectLabel = TextView(this).apply { text = sourceName; textSize = 13f; setTextColor(white); setPadding(0, 12, 0, 8) }
-        body.addView(projectLabel)
-        status = TextView(this).apply { text = "Import a source project ZIP to edit files, or an APK to inspect its contents."; textSize = 12f; setTextColor(muted); setPadding(0, 0, 0, 12) }
-        body.addView(status)
-        section(body, "APP NAME")
-        appNameInput = EditText(this).apply { hint = "New visible app name"; setTextColor(white); setHintTextColor(muted); textSize = 14f; setSingleLine(true); background = roundedInput() }
-        body.addView(appNameInput, matchWrap())
-        body.addView(button("Rename app in source files") { renameInSource() })
-        section(body, "PROJECT FILES")
-        fileList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        body.addView(fileList)
-        fileLabel = TextView(this).apply { text = "Select a text file to edit"; setTextColor(muted); textSize = 12f; setPadding(0, 10, 0, 6) }
-        body.addView(fileLabel)
+        body.addView(TextView(this).apply { text = "APK STUDIO"; textSize = 27f; setTextColor(blue); setTypeface(null, 1); letterSpacing = 0.04f })
+        body.addView(TextView(this).apply { text = "A cleaner workspace for your projects"; textSize = 13f; setTextColor(muted); setPadding(0, dp(3), 0, dp(16)) })
+
+        val project = card()
+        project.addView(sectionTitle("PROJECT WORKSPACE", "Import source code, browse files, edit, and export."))
+        project.addView(button("Import source ZIP or APK") { openImport() })
+        projectLabel = TextView(this).apply { text = sourceName; textSize = 13f; setTextColor(white); setPadding(0, dp(10), 0, dp(6)) }
+        project.addView(projectLabel)
+        status = TextView(this).apply { text = "Import a source ZIP to edit files, or an APK to inspect its contents."; textSize = 12f; setTextColor(muted); setPadding(0, 0, 0, dp(4)) }
+        project.addView(status); body.addView(project)
+
+        val naming = card()
+        naming.addView(sectionTitle("APP NAME", "Update visible app-name text in supported source files."))
+        appNameInput = textInput("New visible app name", true)
+        naming.addView(appNameInput, matchWrap())
+        naming.addView(button("Rename app in source files") { renameInSource() }); body.addView(naming)
+
+        val filesCard = card()
+        filesCard.addView(sectionTitle("PROJECT FILES", "Tap a file to load it into the editor."))
+        fileList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }; filesCard.addView(fileList)
+        fileLabel = TextView(this).apply { text = "No file selected"; setTextColor(muted); textSize = 12f; setPadding(0, dp(10), 0, dp(7)) }
+        filesCard.addView(fileLabel)
         editor = EditText(this).apply {
-            hint = "File contents appear here"; gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            minLines = 8; setTextColor(white); setHintTextColor(muted); textSize = 12f
-            typeface = android.graphics.Typeface.MONOSPACE; setPadding(10, 10, 10, 10); background = roundedInput()
+            hint = "File contents appear here"; gravity = android.view.Gravity.TOP or android.view.Gravity.START; minLines = 8
+            setTextColor(white); setHintTextColor(muted); textSize = 12f; typeface = android.graphics.Typeface.MONOSPACE
+            setPadding(dp(12), dp(12), dp(12), dp(12)); background = rounded(panel, 14)
         }
-        body.addView(editor, LinearLayout.LayoutParams(-1, 240))
-        body.addView(button("Save changes to project") { saveCurrentFile() })
-        body.addView(button("Export modified project ZIP") { exportZip() })
-        section(body, "AI EDITOR · GEMINI")
-        apiKey = EditText(this).apply {
-            hint = "Gemini API key (stored on this device)"; setTextColor(white); setHintTextColor(muted); textSize = 13f
+        filesCard.addView(editor, LinearLayout.LayoutParams(-1, dp(240)))
+        filesCard.addView(button("Save changes to project") { saveCurrentFile() })
+        filesCard.addView(button("Export modified project ZIP", true) { exportZip() }); body.addView(filesCard)
+
+        val ai = card()
+        ai.addView(sectionTitle("TWO-AI GENERATOR", "Gemini encodes your request. DeepSeek turns the encoded request into code."))
+        ai.addView(fieldLabel("GEMINI API KEY"))
+        apiKey = textInput("Paste your Gemini API key", true).apply {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setPadding(12, 10, 12, 10); background = roundedInput(); setText(getPreferences(0).getString("gemini_key", "") ?: "")
+            setText(getPreferences(0).getString("gemini_key", "") ?: "")
         }
-        body.addView(apiKey, matchWrap())
-        aiPrompt = EditText(this).apply {
-            hint = "Describe the change you want"; setTextColor(white); setHintTextColor(muted); textSize = 13f; minLines = 3
-            gravity = android.view.Gravity.TOP; setPadding(12, 10, 12, 10); background = roundedInput()
-        }
-        body.addView(aiPrompt, matchWrap())
-        deepSeekKey = EditText(this).apply {
-            hint = "DeepSeek API key (stored on device)"; setTextColor(white); setHintTextColor(muted); textSize = 13f
+        ai.addView(apiKey, matchWrap())
+        ai.addView(fieldLabel("DEEPSEEK API KEY"))
+        deepSeekKey = textInput("Paste your DeepSeek API key", true).apply {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setPadding(12, 10, 12, 10); background = roundedInput()
             setText(getPreferences(0).getString("deepseek_key", "") ?: "")
         }
-        body.addView(deepSeekKey, matchWrap())
-        targetPathInput = EditText(this).apply {
-            hint = "Target file path (optional, e.g. scripts/NewScript.lua)"; setTextColor(white); setHintTextColor(muted); textSize = 13f
-            setPadding(12, 10, 12, 10); background = roundedInput()
+        ai.addView(deepSeekKey, matchWrap())
+        ai.addView(fieldLabel("WHAT SHOULD THE AI DO?"))
+        pipelinePrompt = textInput("e.g. Make a player invincible when god mode is enabled", false).apply { minLines = 3; gravity = android.view.Gravity.TOP }
+        ai.addView(pipelinePrompt, matchWrap())
+        ai.addView(TextView(this).apply {
+            text = "+s  Generate a new script\n+q  Change the selected script"; textSize = 12f; setTextColor(white)
+            setPadding(dp(12), dp(10), dp(12), dp(10)); background = rounded(Color.rgb(27, 39, 60), 12)
+        })
+        ai.addView(button("+s   Generate new script") { runTwoAiPipeline(false) })
+        ai.addView(button("+q   Change selected script", true) { runTwoAiPipeline(true) })
+        ai.addView(fieldLabel("ENCODED REQUEST · GEMINI OUTPUT"))
+        encodedPreview = TextView(this).apply {
+            text = "Your encoded request will appear here."; textSize = 12f; setTextColor(muted)
+            typeface = android.graphics.Typeface.MONOSPACE; setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = rounded(Color.rgb(17, 23, 35), 12)
         }
-        body.addView(targetPathInput, matchWrap())
-        body.addView(button("＋s  Encode & generate script") { runPipeline("+s") })
-        body.addView(button("＋q  Encode & edit selected script") { runPipeline("+q") })
+        ai.addView(encodedPreview, matchWrap())
+        ai.addView(fieldLabel("SHARED COMPRESSED TOKEN LIBRARY"))
+        ai.addView(TextView(this).apply {
+            text = "One entry per line: code=meaning. Gemini may add entries; the same library is sent to DeepSeek."
+            textSize = 11f; setTextColor(muted); setPadding(0, 0, 0, dp(6))
+        })
+        libraryEditor = textInput("code=meaning", false).apply {
+            minLines = 6; gravity = android.view.Gravity.TOP
+            setText(getPreferences(0).getString("token_library", defaultTokenLibrary()))
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        ai.addView(libraryEditor, matchWrap())
+        ai.addView(button("Save token library", true) {
+            getPreferences(0).edit().putString("token_library", libraryEditor.text.toString()).apply()
+            status.text = "Token library saved on this device."
+        })
+        body.addView(ai)
         body.addView(TextView(this).apply {
-            text = "APK imports are read-only in this version. Compiled APK manifests need specialised rebuild/signing tools. Source ZIPs can be edited and exported. Keep backups and only modify apps you are authorised to change."
-            textSize = 11f; setTextColor(muted); setPadding(0, 14, 0, 18)
+            text = "Keys are stored locally on this device. Don't share an APK containing your personal keys. APK imports are inspection-only; source ZIPs can be edited and exported."
+            textSize = 11f; setTextColor(muted); setPadding(dp(2), dp(12), dp(2), dp(8))
         })
         setContentView(root)
     }
 
-    private fun section(parent: LinearLayout, title: String) {
-        parent.addView(TextView(this).apply { text = title; textSize = 11f; setTextColor(blue); setTypeface(null, 1); setPadding(0, 20, 0, 7) })
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    private fun rounded(color: Int, radiusDp: Int) = android.graphics.drawable.GradientDrawable().apply { setColor(color); cornerRadius = dp(radiusDp).toFloat() }
+    private fun card() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(14), dp(14), dp(14)); background = rounded(panel, 20)
+        layoutParams = LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12) }
     }
-    private fun matchWrap() = LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 8 }
-    private fun button(label: String, action: () -> Unit) = Button(this).apply {
-        text = label; isAllCaps = false; textSize = 13f; setTextColor(Color.WHITE)
-        background = android.graphics.drawable.GradientDrawable().apply { setColor(blue); cornerRadius = 18f }
-        setOnClickListener { action() }
-        layoutParams = LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 7 }
+    private fun sectionTitle(title: String, subtitle: String) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        addView(TextView(this@MainActivity).apply { text = title; textSize = 11f; setTextColor(blue); setTypeface(null, 1); letterSpacing = 0.08f })
+        addView(TextView(this@MainActivity).apply { text = subtitle; textSize = 12f; setTextColor(muted); setPadding(0, dp(4), 0, dp(12)) })
     }
+    private fun fieldLabel(value: String) = TextView(this).apply {
+        text = value; textSize = 10f; setTextColor(muted); setTypeface(null, 1); letterSpacing = 0.05f; setPadding(0, dp(8), 0, dp(5))
+    }
+    private fun textInput(hintText: String, singleLine: Boolean) = EditText(this).apply {
+        hint = hintText; setTextColor(white); setHintTextColor(muted); textSize = 13f
+        setPadding(dp(12), dp(11), dp(12), dp(11)); background = rounded(Color.rgb(15, 21, 33), 13)
+        if (singleLine) setSingleLine(true) else minLines = 2
+    }
+    private fun matchWrap() = LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) }
+    private fun button(label: String, secondary: Boolean = false, action: () -> Unit) = Button(this).apply {
+        text = label; isAllCaps = false; textSize = 13f; setTextColor(Color.WHITE); minHeight = dp(46)
+        setPadding(dp(12), dp(8), dp(12), dp(8)); background = rounded(if (secondary) Color.rgb(43, 54, 74) else blue, 14)
+        stateListAnimator = null; setOnClickListener { action() }
+        layoutParams = LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(7) }
+    }
+    private fun defaultTokenLibrary(): String = listOf(
+        "0916820001747701=local number =", "0916820001747702=local", "0916820001747703=function",
+        "0916820001747704=if", "0916820001747705=then", "0916820001747706=end", "0916820001747707=return",
+        "0916820001747708=true", "0916820001747709=false", "0916820001747710=player", "0916820001747711=character",
+        "0916820001747712=health", "0916820001747713=god mode", "0916820001747714=make", "0916820001747715=change",
+        "0916820001747716=script", "0916820001747717=number", "0916820001747718=string", "0916820001747719=boolean",
+        "0916820001747720=table", "0916820001747721=for", "0916820001747722=while", "0916820001747723=do",
+        "0916820001747724=game", "0916820001747725=workspace", "0916820001747726=instance", "0916820001747727=connect",
+        "0916820001747728=wait", "0916820001747729=task", "0916820001747730=and", "0916820001747731=or",
+        "0916820001747732=not", "0916820001747733=local number = 10"
+    ).joinToString("\n")
 
     private fun openImport() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
