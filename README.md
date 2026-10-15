@@ -7,21 +7,23 @@ APK Studio is a mobile-first Android source-project editor. The native Android a
 - Rounded, dark UI with spaced cards and vertically scrolling sections designed to avoid overlapping controls.
 - Import source ZIPs to edit supported text files, update common Android app-name fields, and export a modified ZIP.
 - Import APK files for archive inspection only; rebuilding and signing compiled APKs is not implemented.
-- Two-stage AI workflow: Gemini encodes a request into a numeric token stream; Claude Code, running on your Windows PC under your eligible Claude subscription, generates code through a local authenticated bridge and MCP server.
-- +s generates a new script. +q modifies the currently selected text file.
-- The token library is editable and grows when Gemini returns new mappings. The same per-request library is exposed to Claude through the MCP server.
+- Manual two-stage AI workflow: Gemini encodes a request into a numeric token stream; you copy a prepared prompt into Claude Free, then paste Claude's generated code back into APK Studio.
+- `+s` prepares a new script request. `+q` prepares a change to the currently selected text file.
+- The token library is editable and grows when Gemini returns new mappings. It is saved locally on your device.
 
-## Claude bridge setup
+## Use the AI workflow
 
-1. Install Node.js 18+ and Claude Code on the Windows PC.
-2. Sign in to Claude Code with a plan that includes Claude Code.
-3. Clone this repository to the PC and run start-bridge.bat.
-4. Put the PC's local IPv4 address and printed bridge token into APK Studio on the phone. Keep both devices on the same trusted Wi-Fi.
+1. Enter a Gemini API key in APK Studio.
+2. Import a source ZIP if you want to change an existing file.
+3. Describe the task and choose `+s` for a new script or `+q` for the selected file.
+4. Tap **Copy prompt for Claude Free**, open Claude in the app or browser, paste the prompt, and send it.
+5. Copy Claude's complete code response, return to APK Studio, paste it into the response box, and tap **Apply Claude response to project**.
+6. Review the file, save changes, and export the modified source ZIP.
 
-See bridge/README.md for details and security notes.
+This manual workflow does not require Claude Code, an MCP server, a PC bridge, or a paid Claude subscription. Gemini API usage limits may apply.
 
 ## Build the Android APK
 
-Open Actions → Build APK Studio Android → Run workflow. Download the apk-studio-debug artifact from a completed workflow run and extract app-debug.apk.
+Open Actions → Build APK Studio Android → Run workflow. Download the `apk-studio-debug` artifact from a completed workflow run and extract `app-debug.apk`.
 
-See android/README.md for Android setup, API-key notes, and limitations.
+See android/README.md for setup, API-key notes, and limitations.
