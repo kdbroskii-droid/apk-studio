@@ -1,0 +1,41 @@
+name: Validate Claude MCP bridge
+on:
+  push:
+    paths:
+      - "bridge/**"
+      - "mcp-server/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".mcp.json"
+      - "start-bridge.bat"
+      - ".github/workflows/validate-claude-bridge.yml"
+  pull_request:
+    paths:
+      - "bridge/**"
+      - "mcp-server/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".mcp.json"
+      - "start-bridge.bat"
+      - ".github/workflows/validate-claude-bridge.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package.json
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check JavaScript syntax
+        run: |
+          node --check bridge/server.js
+          node --check mcp-server/index.js
+      - name: Check MCP SDK imports
+        run: node -e "import('@modelcontextprotocol/sdk/server/index.js').then(() => console.log('MCP SDK import OK'))"
