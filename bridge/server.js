@@ -103,13 +103,14 @@ function runClaude(task, extraEnv) {
       "mcp__apkstudio__read_current_file",
       "mcp__apkstudio__validate_generated_code"
     ];
-    const child = spawn("claude", args, {
-      cwd: root,
-      env: { ...process.env, ...extraEnv },
-      shell: process.platform === "win32",
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"]
-    });
+    const windowsCommand = 'claude -p "Use the request supplied on standard input. Read the request shared token library and selected file through the apkstudio MCP tools, then return only the complete generated source file." --output-format text --mcp-config .mcp.json --allowedTools mcp__apkstudio__get_token_library mcp__apkstudio__read_current_file mcp__apkstudio__validate_generated_code';
+    const child = process.platform === "win32"
+      ? spawn("cmd.exe", ["/d", "/s", "/c", windowsCommand], {
+          cwd: root, env: { ...process.env, ...extraEnv }, windowsHide: true, stdio: ["pipe", "pipe", "pipe"]
+        })
+      : spawn("claude", args, {
+          cwd: root, env: { ...process.env, ...extraEnv }, windowsHide: true, stdio: ["pipe", "pipe", "pipe"]
+        });
     let stdout = "";
     let stderr = "";
     const timeout = setTimeout(() => child.kill("SIGTERM"), 180000);
