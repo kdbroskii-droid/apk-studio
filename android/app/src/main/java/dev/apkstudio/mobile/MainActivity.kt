@@ -86,7 +86,7 @@ class MainActivity : Activity() {
         body.addView(apiKey, matchWrap())
         aiPrompt = EditText(this).apply {
             hint = "Describe the change you want"; setTextColor(white); setHintTextColor(muted); textSize = 13f; minLines = 3
-            gravity = android.view.Gravity.TOP; setBackgroundColor(panel)
+            gravity = android.view.Gravity.TOP; setPadding(12, 10, 12, 10); background = roundedInput()
         }
         body.addView(aiPrompt, matchWrap())
         deepSeekKey = EditText(this).apply {
@@ -190,7 +190,7 @@ class MainActivity : Activity() {
 
     private fun isEditable(path: String, bytes: ByteArray): Boolean {
         val p = path.lowercase()
-        return bytes.size <= 1024 * 1024 && (p.endsWith(".xml") || p.endsWith(".kt") || p.endsWith(".java") || p.endsWith(".gradle") || p.endsWith(".json") || p.endsWith(".txt") || p.endsWith(".html") || p.endsWith(".css") || p.endsWith(".js") || p.endsWith(".md") || p.endsWith(".properties") || p.endsWith(".yml") || p.endsWith(".yaml")) && looksText(bytes)
+        return bytes.size <= 1024 * 1024 && (p.endsWith(".xml") || p.endsWith(".kt") || p.endsWith(".java") || p.endsWith(".gradle") || p.endsWith(".json") || p.endsWith(".txt") || p.endsWith(".html") || p.endsWith(".css") || p.endsWith(".js") || p.endsWith(".md") || p.endsWith(".properties") || p.endsWith(".yml") || p.endsWith(".yaml") || p.endsWith(".lua") || p.endsWith(".luau") || p.endsWith(".py") || p.endsWith(".ts") || p.endsWith(".tsx") || p.endsWith(".cs") || p.endsWith(".cpp") || p.endsWith(".h") || p.endsWith(".sh") || p.endsWith(".toml") || p.endsWith(".gradle.kts")) && looksText(bytes)
     }
     private fun looksText(bytes: ByteArray): Boolean {
         if (bytes.isEmpty()) return true
