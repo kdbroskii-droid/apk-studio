@@ -93,7 +93,7 @@ class MainActivity : Activity() {
         filesCard.addView(button("Export modified project ZIP", true) { exportZip() }); body.addView(filesCard)
 
         val ai = card()
-        ai.addView(sectionTitle("GEMINI + CLAUDE FREE", "Gemini encodes your request. Copy the prompt into Claude Free, then paste the generated code back here."))
+        ai.addView(sectionTitle("GEMINI + CLAUDE", "Gemini encodes your request. Use the MCP connector to return code automatically, or keep the manual copy/paste fallback."))
         ai.addView(fieldLabel("GEMINI API KEY"))
         apiKey = textInput("Paste your Gemini API key", true).apply {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
