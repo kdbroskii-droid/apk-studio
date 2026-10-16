@@ -31,6 +31,8 @@ class MainActivity : Activity() {
     private lateinit var appNameInput: EditText
     private lateinit var aiPrompt: EditText
     private lateinit var apiKey: EditText
+    private lateinit var connectorUrlInput: EditText
+    private lateinit var connectorTokenInput: EditText
     private lateinit var pipelinePrompt: EditText
     private lateinit var encodedPreview: TextView
     private lateinit var claudePromptPreview: TextView
@@ -98,6 +100,20 @@ class MainActivity : Activity() {
             setText(getPreferences(0).getString("gemini_key", "") ?: "")
         }
         ai.addView(apiKey, matchWrap())
+        ai.addView(fieldLabel("CLAUDE MCP CONNECTOR · OPTIONAL"))
+        ai.addView(TextView(this).apply {
+            text = "Enter your Cloudflare Worker base URL (without /mcp) and its private token. This lets Claude return code directly to this app."
+            textSize = 11f; setTextColor(muted); setPadding(0, 0, 0, dp(6))
+        })
+        connectorUrlInput = textInput("https://your-worker.workers.dev", true).apply {
+            setText(getPreferences(0).getString("connector_url", "") ?: "")
+        }
+        ai.addView(connectorUrlInput, matchWrap())
+        connectorTokenInput = textInput("Private connector token", true).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setText(getPreferences(0).getString("connector_token", "") ?: "")
+        }
+        ai.addView(connectorTokenInput, matchWrap())
         ai.addView(fieldLabel("WHAT SHOULD THE AI DO?"))
         pipelinePrompt = textInput("e.g. Make a player invincible when god mode is enabled", false).apply { minLines = 3; gravity = android.view.Gravity.TOP }
         ai.addView(pipelinePrompt, matchWrap())
@@ -123,6 +139,11 @@ class MainActivity : Activity() {
             maxLines = 10
         }
         ai.addView(claudePromptPreview, matchWrap())
+        ai.addView(button("Queue for Claude connector + wait", true) { queueForClaudeConnector() })
+        ai.addView(TextView(this).apply {
+            text = "After queueing, open Claude and ask it to process the pending APK Studio task. The app will load the returned file when Claude submits it."
+            textSize = 11f; setTextColor(muted); setPadding(0, dp(4), 0, dp(8))
+        })
         ai.addView(button("Copy prompt for Claude Free") { copyClaudePrompt() })
         ai.addView(TextView(this).apply {
             text = "Next: open Claude Free, paste the copied prompt, send it, then copy Claude's complete code response back into the box below."
@@ -421,6 +442,98 @@ class MainActivity : Activity() {
                 runOnUiThread { status.text = "Gemini encoding failed: " + (e.message ?: "Unknown error") }
             }
         }
+    }
+
+
+    private fun queueForClaudeConnector() {
+        val prompt = pendingClaudePrompt
+        val path = pendingTargetPath
+        val mode = pendingMode
+        val baseUrl = connectorUrlInput.text.toString().trim().trimEnd('/')
+        val token = connectorTokenInput.text.toString().trim()
+        if (prompt.isNullOrBlank() || path.isNullOrBlank() || mode.isNullOrBlank()) {
+            status.text = "Encode a +s or +q request with Gemini first."
+            return
+        }
+        if (!baseUrl.startsWith("https://") || token.isBlank()) {
+            status.text = "Enter the HTTPS Worker base URL and private connector token first."
+            return
+        }
+        getPreferences(0).edit()
+            .putString("connector_url", baseUrl)
+            .putString("connector_token", token)
+            .apply()
+        val taskId = java.util.UUID.randomUUID().toString()
+        status.text = "Sending the encoded task to your Claude connector…"
+        io.execute {
+            try {
+                val payload = JSONObject()
+                    .put("taskId", taskId)
+                    .put("mode", mode)
+                    .put("targetPath", path)
+                    .put("prompt", prompt)
+                connectorRequest(baseUrl + "/api/tasks", token, "POST", payload)
+                runOnUiThread { status.text = "Task queued. Open Claude, enable APK Studio, and ask it to process the pending task…" }
+                val deadline = System.currentTimeMillis() + 10L * 60L * 1000L
+                while (System.currentTimeMillis() < deadline) {
+                    Thread.sleep(2500L)
+                    val result = connectorRequest(baseUrl + "/api/tasks/" + taskId + "/result", token, "GET")
+                    if (result.optBoolean("ready", false) && result.optString("taskId") == taskId) {
+                        val generated = result.optString("code", "").trim()
+                        if (generated.isBlank()) throw IOException("Claude returned an empty file.")
+                        runOnUiThread { applyConnectorResponse(path, mode, generated) }
+                        return@execute
+                    }
+                }
+                runOnUiThread { status.text = "Still waiting for Claude. If it has not submitted the task, open Claude and ask it to process APK Studio's pending task, then queue again if needed." }
+            } catch (e: Exception) {
+                runOnUiThread { status.text = "Claude connector failed: " + (e.message ?: "Unknown error") }
+            }
+        }
+    }
+
+    private fun connectorRequest(url: String, token: String, method: String, body: JSONObject? = null): JSONObject {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.requestMethod = method
+            conn.connectTimeout = 15000
+            conn.readTimeout = 30000
+            conn.setRequestProperty("Authorization", "Bearer " + token)
+            conn.setRequestProperty("Accept", "application/json")
+            if (body != null) {
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            }
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+            if (code !in 200..299) throw IOException("HTTP " + code + ": " + text.take(240))
+            return JSONObject(text)
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun applyConnectorResponse(path: String, mode: String, rawCode: String) {
+        if (mode == "+q" && !files.containsKey(path)) {
+            status.text = "The target file is no longer in the project. Encode the request again."
+            return
+        }
+        val generated = rawCode.trim()
+            .replace(Regex("^\\x60{3}[a-zA-Z0-9_-]*\\s*"), "")
+            .replace(Regex("\\s*\\x60{3}$"), "").trim()
+        if (generated.isBlank()) {
+            status.text = "Claude returned an empty file. Nothing was changed."
+            return
+        }
+        files[path] = generated.toByteArray(Charsets.UTF_8)
+        selectedPath = path
+        fileLabel.text = path
+        editor.isEnabled = true
+        editor.setText(generated)
+        renderFileList()
+        status.text = "Claude connector returned the complete file: " + path + ". Review it, save changes, then export your source ZIP."
     }
 
     private fun copyClaudePrompt() {
