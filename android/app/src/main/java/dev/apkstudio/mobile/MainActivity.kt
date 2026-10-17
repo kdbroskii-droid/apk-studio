@@ -615,7 +615,7 @@ class MainActivity : Activity() {
                     val item = additions.optJSONObject(i) ?: continue
                     val code = item.optString("code").trim()
                     val meaning = item.optString("meaning").trim()
-                    if (code.matches(Regex("\\d{1,5}")) && code.toIntOrNull() in 99000..99999 && meaning.isNotBlank() && !merged.containsKey(code.padStart(5, '0'))) merged[code.padStart(5, '0')] = meaning
+                    if (code.matches(Regex("\\d{1,5}")) && (code.toIntOrNull()?.let { it in 99000..99999 } == true) && meaning.isNotBlank() && !merged.containsKey(code.padStart(5, '0'))) merged[code.padStart(5, '0')] = meaning
                 }
                 val mergedLibrary = merged.entries.joinToString("\n") { it.key + "=" + it.value }
                 runOnUiThread { status.text = "Gemini key 4 is reviewing the token library…" }
