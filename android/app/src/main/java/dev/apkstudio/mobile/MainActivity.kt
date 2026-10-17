@@ -537,7 +537,7 @@ class MainActivity : Activity() {
                     "Do not lose words, operators, conditions, negation, names, values, or constraints.",
                     "For unknown concepts, assign the next unused 5-digit code from 00001 through 99999 and add it to new_entries. Do not change the meaning of existing codes.",
                     "Begin encoded output with exactly " + mode + " on its own line.",
-                    "Return ONLY JSON: {\"encoded\":\"...\",\"new_entries\":[{\"code\":\"16 digit code\",\"meaning\":\"plain meaning\"}]}"
+                    "Return ONLY JSON: {\"encoded\":\"...\",\"new_entries\":[{\"code\":\"00001\",\"meaning\":\"plain meaning\"}]}"
                 ).joinToString("\n")
                 val encodedJson = JSONObject(callGemini(gemini, encodePrompt))
                 val encoded = encodedJson.getString("encoded").trim()
@@ -552,7 +552,7 @@ class MainActivity : Activity() {
                     val item = additions.optJSONObject(i) ?: continue
                     val code = item.optString("code").trim()
                     val meaning = item.optString("meaning").trim()
-                    if (code.matches(Regex("\\d{16}")) && meaning.isNotBlank() && !merged.containsKey(code)) merged[code] = meaning
+                    if (code.matches(Regex("\\d{1,5}")) && meaning.isNotBlank() && !merged.containsKey(code)) merged[code] = meaning
                 }
                 val mergedLibrary = merged.entries.joinToString("\n") { it.key + "=" + it.value }
                 val claudePrompt = listOf(
