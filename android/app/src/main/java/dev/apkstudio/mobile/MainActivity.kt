@@ -206,7 +206,7 @@ class MainActivity : Activity() {
         ai.addView(resultPreview, matchWrap())
         ai.addView(fieldLabel("SHARED CODE LIBRARY · SHORT TOKENS"))
         ai.addView(TextView(this).apply {
-            text = "One entry per line: code=meaning. Codes are 1–5 digits. The fourth Gemini key reviews and manages the library during each generation."
+            text = "One entry per line: code=meaning. The bundled dictionary adds nearly 99,000 words, gaming terms, and typo variants automatically. Codes are always five digits; 99000–99999 are reserved for custom concepts."
             textSize = 11f; setTextColor(muted); setPadding(0, 0, 0, dp(6))
         })
         libraryEditor = textInput("code=meaning", false).apply {
@@ -310,6 +310,65 @@ class MainActivity : Activity() {
         "00197=retry", "00198=cache", "00199=configuration", "00200=dependency"
     ).joinToString("\n")
 
+    /** Full bundled dictionary plus the small editable/user-added section. */
+    private fun fullTokenLibrary(): String {
+        val core = defaultTokenLibrary()
+        val extra = try {
+            assets.open("token-library-extra.tsv").bufferedReader().use { it.readText() }
+        } catch (_: Exception) {
+            ""
+        }
+        return mergeLibraryEntries(core, extra)
+    }
+
+    /** Preserve the first meaning assigned to a code and normalize all codes to five digits. */
+    private fun mergeLibraryEntries(base: String, additions: String): String {
+        val merged = linkedMapOf<String, String>()
+        (base + "\n" + additions).lines().forEach { line ->
+            val split = line.indexOf('=')
+            if (split <= 0) return@forEach
+            val rawCode = line.substring(0, split).trim()
+            val meaning = line.substring(split + 1).trim()
+            if (!rawCode.matches(Regex("\\d{1,5}")) || meaning.isBlank()) return@forEach
+            val code = rawCode.padStart(5, '0')
+            if (!merged.containsKey(code)) merged[code] = meaning
+        }
+        return merged.entries.joinToString("\n") { it.key + "=" + it.value }
+    }
+
+    /** Keep prompt payloads small: core protocol terms plus words relevant to this request. */
+    private fun selectRelevantLibrary(full: String, request: String): String {
+        val lines = full.lines().filter { it.contains('=') }
+        val core = lines.filter {
+            val code = it.substringBefore('=').toIntOrNull() ?: 0
+            code in 1..200
+        }
+        val words = Regex("[a-z][a-z0-9_'-]*").findAll(request.lowercase())
+            .map { it.value }.toSet()
+        val relevant = lines.asSequence()
+            .filterNot { it in core }
+            .filter { line ->
+                val meaning = line.substringAfter('=').lowercase()
+                val parts = Regex("[a-z][a-z0-9_'-]*").findAll(meaning).map { it.value }.toSet()
+                words.any { word -> word in parts || (word.length >= 4 && meaning.contains(word)) }
+            }
+            .take(500)
+            .toList()
+        return (core + relevant).distinct().joinToString("\n")
+    }
+
+    /** Show the core mappings and custom entries, not the entire ~99k-word bundled dictionary. */
+    private fun editableTokenLibrary(full: String): String {
+        val bundledCodes = fullTokenLibrary().lineSequence()
+            .mapNotNull { it.substringBefore('=').takeIf { code -> it.contains('=') } }
+            .toSet()
+        return full.lineSequence().filter { line ->
+            val code = line.substringBefore('=')
+            val number = code.toIntOrNull() ?: return@filter false
+            number in 1..200 || number in 99000..99999 || code !in bundledCodes
+        }.joinToString("\n")
+    }
+
     private fun normalizeTokenLibrary(raw: String): String {
         val meanings = linkedMapOf<String, String>()
         raw.lines().forEach { line ->
@@ -318,8 +377,10 @@ class MainActivity : Activity() {
             val code = line.substring(0, split).trim()
             val meaning = line.substring(split + 1).trim()
             if (meaning.isBlank()) return@forEach
-            if (code.matches(Regex("\\d{1,5}")) && !meanings.containsKey(code)) {
-                meanings[code] = meaning
+            if (code.matches(Regex("\\d{1,5}"))) {
+                val normalizedCode = code.padStart(5, '0')
+                if (!meanings.containsKey(normalizedCode)) meanings[normalizedCode] = meaning
+                else meanings[""] = meaning
             } else {
                 meanings[""] = meaning
             }
@@ -513,7 +574,8 @@ class MainActivity : Activity() {
         val mode = if (changeSelected) "+q" else "+s"
         val path = if (changeSelected) selected!! else nextGeneratedPath()
         val current = if (changeSelected) String(files[path] ?: byteArrayOf(), Charsets.UTF_8) else ""
-        val initialLibrary = normalizeTokenLibrary(libraryEditor.text.toString())
+        val initialLibrary = mergeLibraryEntries(fullTokenLibrary(), normalizeTokenLibrary(libraryEditor.text.toString()))
+        val requestLibrary = selectRelevantLibrary(initialLibrary, request)
         getPreferences(0).edit()
             .putString("gemini_coder_primary", coder1)
             .putString("gemini_key", coder1)
@@ -532,10 +594,11 @@ class MainActivity : Activity() {
                     "Mode: " + mode,
                     "User request: " + request,
                     "Token library (code=meaning, one per line):",
-                    initialLibrary,
-                    "Reuse an existing code when its meaning matches. Never generate codes longer than five digits. Keep ordinary numeric literals readable after a hyphen, e.g. 00031-10.",
+                    requestLibrary,
+                    "Reuse an existing code when its meaning matches. Every code must be exactly five digits, including leading zeroes.",
+                    "Keep ordinary numeric literals readable after a hyphen, e.g. 00031-10.",
                     "Do not lose words, operators, conditions, negation, names, values, or constraints.",
-                    "For unknown concepts, assign the next unused 5-digit code from 00001 through 99999 and add it to new_entries. Do not change existing meanings during encoding.",
+                    "For a genuinely unknown phrase, assign an unused code from 99000 through 99999 and add it to new_entries. Do not change existing meanings during encoding.",
                     "Begin encoded output with exactly " + mode + " on its own line.",
                     "Return ONLY JSON: {\"encoded\":\"...\",\"new_entries\":[{\"code\":\"00001\",\"meaning\":\"plain meaning\"}]}"
                 ).joinToString("\n")
@@ -552,27 +615,28 @@ class MainActivity : Activity() {
                     val item = additions.optJSONObject(i) ?: continue
                     val code = item.optString("code").trim()
                     val meaning = item.optString("meaning").trim()
-                    if (code.matches(Regex("\\d{1,5}")) && meaning.isNotBlank() && !merged.containsKey(code)) merged[code] = meaning
+                    if (code.matches(Regex("\\d{1,5}")) && code.toIntOrNull() in 99000..99999 && meaning.isNotBlank() && !merged.containsKey(code.padStart(5, '0'))) merged[code.padStart(5, '0')] = meaning
                 }
                 val mergedLibrary = merged.entries.joinToString("\n") { it.key + "=" + it.value }
                 runOnUiThread { status.text = "Gemini key 4 is reviewing the token library…" }
                 val libraryPrompt = listOf(
                     "You are APK Studio's token-library maintainer.",
-                    "Read the entire current code=meaning library and the proposed additions.",
-                    "Preserve every existing code and its meaning exactly. Keep codes unique and between 1 and 5 digits. You may remove duplicate identical lines, and you may add valid missing concepts only when they are genuinely needed.",
-                    "Do not invent entries unrelated to the request. Return ONLY JSON with one property: library, containing the complete final code=meaning library as newline-separated text.",
-                    "Current library and proposed additions:\n" + mergedLibrary
+                    "Review only the relevant slice of the shared library plus the proposed additions; the complete dictionary is bundled in the app and must not be echoed back.",
+                    "Preserve every supplied code and meaning exactly. Keep every code exactly five digits. Only approve or add concepts genuinely needed for this request, using the reserved range 99000-99999 for new concepts.",
+                    "Return ONLY JSON with one property: library, containing the reviewed relevant slice and approved additions as newline-separated code=meaning text.",
+                    "Relevant library slice:\n" + requestLibrary + "\nProposed additions JSON:\n" + additions.toString()
                 ).joinToString("\n\n")
                 val libraryJson = JSONObject(callGemini(libraryManager, libraryPrompt, true))
-                val curatedLibrary = normalizeTokenLibrary(libraryJson.optString("library", mergedLibrary))
-                val finalLibrary = if (curatedLibrary.isBlank()) mergedLibrary else curatedLibrary
+                val curatedLibrary = normalizeTokenLibrary(libraryJson.optString("library", requestLibrary))
+                val finalLibrary = mergeLibraryEntries(mergedLibrary, curatedLibrary)
+                val finalPromptLibrary = selectRelevantLibrary(finalLibrary, request)
                 val codePrompt = listOf(
                     "You are APK Studio's primary source-code generator. Produce production-minded, complete source code for exactly one file.",
                     "Mode: " + mode + if (mode == "+s") " (create a complete new script)" else " (modify the selected file and preserve unrelated behavior)",
                     "Target file path: " + path,
                     "Original user request: " + request,
                     "Decode the compact request using the exact code meanings in the token library below. Do not guess the meanings of numeric codes.",
-                    "Shared numeric token library (code=meaning):\n" + finalLibrary,
+                    "Relevant shared numeric token library (code=meaning):\n" + finalPromptLibrary,
                     "Encoded request:\n" + encoded,
                     if (mode == "+q") "Current selected file contents; edit this file and preserve unrelated behavior:\n" + current else "Create a new complete source file.",
                     "Follow the target language and existing project conventions. For Roblox Luau, use server-authoritative logic and validate all client requests and RemoteEvents on the server.",
@@ -610,8 +674,9 @@ class MainActivity : Activity() {
                     renderFileList()
                     encodedPreview.text = encoded
                     resultPreview.text = checked
-                    libraryEditor.setText(finalLibrary)
-                    getPreferences(0).edit().putString("token_library", finalLibrary).apply()
+                    val editableLibrary = editableTokenLibrary(finalLibrary)
+                    libraryEditor.setText(editableLibrary)
+                    getPreferences(0).edit().putString("token_library", editableLibrary).apply()
                     status.text = "Done: " + coderUsed + " generated the file; checker reviewed it. Review, save changes, then export the source ZIP."
                 }
             } catch (e: Exception) {
