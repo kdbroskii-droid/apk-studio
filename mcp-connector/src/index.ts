@@ -229,7 +229,7 @@ async function defaultHandler(request: Request, env: Env): Promise<Response> {
 export default new OAuthProvider<Env>({
   apiRoute: "/mcp",
   apiHandler: mcpHandler,
-  defaultHandler,
+  defaultHandler: { fetch: defaultHandler },
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/oauth/token",
   clientRegistrationEndpoint: "/oauth/register",
