@@ -50,33 +50,79 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         window.statusBarColor = bg
         window.navigationBarColor = bg
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         buildUi()
     }
 
     private fun buildUi() {
-        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(18), dp(12), dp(18), dp(12)) }
-        val scroll = ScrollView(this).apply { clipToPadding = false }
-        val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, dp(12)) }
-        scroll.addView(body)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        body.addView(TextView(this).apply { text = "APK STUDIO"; textSize = 27f; setTextColor(blue); setTypeface(null, 1); letterSpacing = 0.04f })
-        body.addView(TextView(this).apply { text = "A cleaner workspace for your projects"; textSize = 13f; setTextColor(muted); setPadding(0, dp(3), 0, dp(16)) })
+        root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(bg)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+        }
+        val topBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(4), dp(12), dp(4))
+            background = rounded(panel, 10)
+        }
+        topBar.addView(TextView(this).apply {
+            text = "▣  APK STUDIO"
+            textSize = 16f
+            setTextColor(blue)
+            setTypeface(null, 1)
+            letterSpacing = 0.04f
+        })
+        topBar.addView(TextView(this).apply {
+            text = "   MOBILE IDE   •   EDIT   /   AI   /   BUILD"
+            textSize = 10f
+            setTextColor(muted)
+        }, LinearLayout.LayoutParams(0, dp(36), 1f))
+        topBar.addView(TextView(this).apply {
+            text = "LANDSCAPE"
+            textSize = 10f
+            setTextColor(white)
+            setPadding(dp(8), dp(5), dp(8), dp(5))
+            background = rounded(Color.rgb(35, 55, 82), 6)
+        })
+        root.addView(topBar, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(6) })
+
+        val workspace = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(bg)
+        }
+        val leftScroll = ScrollView(this).apply { clipToPadding = false }
+        val leftBody = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, dp(4), dp(8))
+        }
+        leftScroll.addView(leftBody)
+        workspace.addView(leftScroll, LinearLayout.LayoutParams(dp(250), -1))
+        val rightScroll = ScrollView(this).apply { clipToPadding = false }
+        val rightBody = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(4), 0, 0, dp(8))
+        }
+        rightScroll.addView(rightBody)
+        workspace.addView(rightScroll, LinearLayout.LayoutParams(0, -1, 1f))
+        root.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val project = card()
         project.addView(sectionTitle("PROJECT WORKSPACE", "Import source code, browse files, edit, and export."))
         project.addView(button("Import source ZIP or APK") { openImport() })
         projectLabel = TextView(this).apply { text = sourceName; textSize = 13f; setTextColor(white); setPadding(0, dp(10), 0, dp(6)) }
         project.addView(projectLabel)
-        status = TextView(this).apply { text = "Import a source ZIP to edit files, or an APK to inspect its contents."; textSize = 12f; setTextColor(muted); setPadding(0, 0, 0, dp(4)) }
-        project.addView(status); body.addView(project)
+        status = TextView(this).apply { text = "Ready • import a source ZIP or inspect an APK."; textSize = 11f; setTextColor(muted); setPadding(0, 0, 0, dp(4)) }
+        project.addView(status); leftBody.addView(project)
 
         val naming = card()
         naming.addView(sectionTitle("APP NAME", "Update visible app-name text in supported source files."))
         appNameInput = textInput("New visible app name", true)
         naming.addView(appNameInput, matchWrap())
-        naming.addView(button("Rename app in source files") { renameInSource() }); body.addView(naming)
+        naming.addView(button("Rename app in source files") { renameInSource() }); leftBody.addView(naming)
 
         val filesCard = card()
         filesCard.addView(sectionTitle("PROJECT FILES", "Tap a file to load it into the editor."))
@@ -90,7 +136,7 @@ class MainActivity : Activity() {
         }
         filesCard.addView(editor, LinearLayout.LayoutParams(-1, dp(240)))
         filesCard.addView(button("Save changes to project") { saveCurrentFile() })
-        filesCard.addView(button("Export modified project ZIP", true) { exportZip() }); body.addView(filesCard)
+        filesCard.addView(button("Export modified project ZIP", true) { exportZip() }); leftBody.addView(filesCard)
 
         val ai = card()
         ai.addView(sectionTitle("GEMINI + CLAUDE", "Gemini encodes your request. Use the MCP connector to return code automatically, or keep the manual copy/paste fallback."))
@@ -181,8 +227,8 @@ class MainActivity : Activity() {
             getPreferences(0).edit().putString("token_library", libraryEditor.text.toString()).apply()
             status.text = "Token library saved on this device."
         })
-        body.addView(ai)
-        body.addView(TextView(this).apply {
+        rightBody.addView(ai)
+        rightBody.addView(TextView(this).apply {
             text = "Gemini key and bridge token are stored locally on this device. Keep the bridge token private. APK imports are inspection-only; source ZIPs can be edited and exported."
             textSize = 11f; setTextColor(muted); setPadding(dp(2), dp(12), dp(2), dp(8))
         })
