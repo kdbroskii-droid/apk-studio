@@ -114,6 +114,17 @@ class MainActivity : Activity() {
             setText(getPreferences(0).getString("connector_token", "") ?: "")
         }
         ai.addView(connectorTokenInput, matchWrap())
+        ai.addView(button("Save AI settings", true) {
+            val gemini = apiKey.text.toString().trim()
+            val baseUrl = connectorUrlInput.text.toString().trim().trimEnd('/')
+            val token = connectorTokenInput.text.toString().trim()
+            getPreferences(0).edit()
+                .putString("gemini_key", gemini)
+                .putString("connector_url", baseUrl)
+                .putString("connector_token", token)
+                .apply()
+            status.text = "AI settings saved privately on this device. Gemini key will be reused automatically."
+        })
         ai.addView(fieldLabel("WHAT SHOULD THE AI DO?"))
         pipelinePrompt = textInput("e.g. Make a player invincible when god mode is enabled", false).apply { minLines = 3; gravity = android.view.Gravity.TOP }
         ai.addView(pipelinePrompt, matchWrap())
