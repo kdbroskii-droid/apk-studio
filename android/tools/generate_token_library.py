@@ -13,8 +13,8 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ACTIVITY = ROOT / "app/src/main/java/dev/apkstudio/mobile/MainActivity.kt"
-OUT = ROOT / "app/src/main/assets/token-library-extra.tsv"
+ACTIVITY = ROOT / "android/app/src/main/java/dev/apkstudio/mobile/MainActivity.kt"
+OUT = ROOT / "android/app/src/main/assets/token-library-extra.tsv"
 CMUDICT_URL = "https://raw.githubusercontent.com/cmusphinx/cmudict/master/cmudict.dict"
 FIRST_EXTRA = 201
 LAST_STATIC = 98999
