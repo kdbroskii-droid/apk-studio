@@ -408,7 +408,7 @@ class MainActivity : Activity() {
                     "Do not lose words, operators, conditions, negation, names, values, or constraints.",
                     "For unknown concepts, create unique 16-digit codes and add them to new_entries. Do not change the meaning of existing codes.",
                     "Begin encoded output with exactly " + mode + " on its own line.",
-                    "Return ONLY JSON: {\\"encoded\\":\\"...\\",\\"new_entries\\":[{\\"code\\":\\"16 digit code\\",\\"meaning\\":\\"plain meaning\\"}]}"
+                    "Return ONLY JSON: {\"encoded\":\"...\",\"new_entries\":[{\"code\":\"16 digit code\",\"meaning\":\"plain meaning\"}]}"
                 ).joinToString("\n")
                 val encodedJson = JSONObject(callGemini(gemini, encodePrompt))
                 val encoded = encodedJson.getString("encoded").trim()
