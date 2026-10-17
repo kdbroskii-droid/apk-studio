@@ -22,6 +22,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Generate expanded five-digit token library
+        run: python3 android/tools/generate_token_library.py
       - name: Build debug APK
         working-directory: android
         run: gradle assembleDebug
