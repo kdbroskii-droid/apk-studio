@@ -212,20 +212,22 @@ class MainActivity : Activity() {
         }
         ai.addView(claudeResponseInput, LinearLayout.LayoutParams(-1, dp(210)).apply { bottomMargin = dp(8) })
         ai.addView(button("Apply Claude response to project", true) { applyClaudeResponse() })
-        ai.addView(fieldLabel("SHARED COMPRESSED TOKEN LIBRARY"))
+        ai.addView(fieldLabel("SHARED CODE LIBRARY · SHORT TOKENS"))
         ai.addView(TextView(this).apply {
-            text = "One entry per line: code=meaning. Gemini can add new mappings; this library is saved on this device."
+            text = "One entry per line: code=meaning. Codes are 1–5 digits, meanings stay readable, and existing mappings are preserved. The library is saved on this device."
             textSize = 11f; setTextColor(muted); setPadding(0, 0, 0, dp(6))
         })
         libraryEditor = textInput("code=meaning", false).apply {
             minLines = 6; gravity = android.view.Gravity.TOP
-            setText(getPreferences(0).getString("token_library", defaultTokenLibrary()))
+            setText(normalizeTokenLibrary(getPreferences(0).getString("token_library", defaultTokenLibrary()) ?: defaultTokenLibrary()))
             typeface = android.graphics.Typeface.MONOSPACE
         }
         ai.addView(libraryEditor, matchWrap())
         ai.addView(button("Save token library", true) {
-            getPreferences(0).edit().putString("token_library", libraryEditor.text.toString()).apply()
-            status.text = "Token library saved on this device."
+            val normalized = normalizeTokenLibrary(libraryEditor.text.toString())
+            libraryEditor.setText(normalized)
+            getPreferences(0).edit().putString("token_library", normalized).apply()
+            status.text = "Token library saved: " + normalized.lines().count { it.contains("=") } + " mappings. All token codes are at most five digits."
         })
         rightBody.addView(ai)
         rightBody.addView(TextView(this).apply {
@@ -262,16 +264,97 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(7) }
     }
     private fun defaultTokenLibrary(): String = listOf(
-        "0916820001747701=local number =", "0916820001747702=local", "0916820001747703=function",
-        "0916820001747704=if", "0916820001747705=then", "0916820001747706=end", "0916820001747707=return",
-        "0916820001747708=true", "0916820001747709=false", "0916820001747710=player", "0916820001747711=character",
-        "0916820001747712=health", "0916820001747713=god mode", "0916820001747714=make", "0916820001747715=change",
-        "0916820001747716=script", "0916820001747717=number", "0916820001747718=string", "0916820001747719=boolean",
-        "0916820001747720=table", "0916820001747721=for", "0916820001747722=while", "0916820001747723=do",
-        "0916820001747724=game", "0916820001747725=workspace", "0916820001747726=instance", "0916820001747727=connect",
-        "0916820001747728=wait", "0916820001747729=task", "0916820001747730=and", "0916820001747731=or",
-        "0916820001747732=not", "0916820001747733=local number = 10"
+        "00001=local", "00002=function", "00003=if", "00004=then", "00005=else",
+        "00006=elseif", "00007=end", "00008=return", "00009=true", "00010=false",
+        "00011=nil", "00012=and", "00013=or", "00014=not", "00015=for",
+        "00016=while", "00017=do", "00018=repeat", "00019=until", "00020=break",
+        "00021=continue", "00022=local variable", "00023=number", "00024=string",
+        "00025=boolean", "00026=table", "00027=player", "00028=character",
+        "00029=humanoid", "00030=health", "00031=damage", "00032=god mode",
+        "00033=script", "00034=module script", "00035=server script", "00036=local script",
+        "00037=game", "00038=workspace", "00039=instance", "00040=parent",
+        "00041=child", "00042=player character", "00043=players service", "00044=run service",
+        "00045=replicated storage", "00046=server storage", "00047=starter gui",
+        "00048=starter player", "00049=remote event", "00050=remote function",
+        "00051=connect", "00052=wait", "00053=task wait", "00054=task spawn",
+        "00055=clone", "00056=destroy", "00057=find first child", "00058=wait for child",
+        "00059=vector3", "00060=cframe", "00061=udim2", "00062=color3",
+        "00063=brick color", "00064=enum", "00065=tween service", "00066=debounce",
+        "00067=event handler", "00068=click detector", "00069=proximity prompt",
+        "00070=tool", "00071=backpack", "00072=leaderstats", "00073=currency",
+        "00074=inventory", "00075=shop", "00076=save data", "00077=data store",
+        "00078=pcall", "00079=error handling", "00080=return value",
+        "00081=equals", "00082=not equals", "00083=greater than", "00084=less than",
+        "00085=greater or equal", "00086=less or equal", "00087=addition",
+        "00088=subtraction", "00089=multiplication", "00090=division",
+        "00091=concatenate", "00092=increment", "00093=decrement", "00094=comment",
+        "00095=loop", "00096=array", "00097=dictionary", "00098=key value pair",
+        "00099=sort", "00100=filter", "00101=search", "00102=validate",
+        "00103=permission check", "00104=server authoritative", "00105=client",
+        "00106=server", "00107=gui", "00108=frame", "00109=text label",
+        "00110=text button", "00111=text box", "00112=screen gui", "00113=scroll frame",
+        "00114=layout", "00115=anchor point", "00116=position", "00117=size",
+        "00118=visible", "00119=enabled", "00120=background color", "00121=text color",
+        "00122=font", "00123=padding", "00124=corner radius", "00125=stroke",
+        "00126=animation", "00127=animator", "00128=animation track", "00129=play animation",
+        "00130=stop animation", "00131=sound", "00132=play sound", "00133=volume",
+        "00134=lighting", "00135=particle emitter", "00136=attachment", "00137=raycast",
+        "00138=collision", "00139=anchored", "00140=can collide", "00141=transparency",
+        "00142=material", "00143=part", "00144=model", "00145=folder",
+        "00146=position changed", "00147=health changed", "00148=player added",
+        "00149=player removing", "00150=character added", "00151=button clicked",
+        "00152=mouse click", "00153=input began", "00154=input ended",
+        "00155=keyboard", "00156=touch input", "00157=gamepad", "00158=mobile",
+        "00159=desktop", "00160=console", "00161=android activity", "00162=kotlin",
+        "00163=java", "00164=xml", "00165=gradle", "00166=manifest",
+        "00167=android permission", "00168=api request", "00169=http response",
+        "00170=json object", "00171=json array", "00172=try catch", "00173=async task",
+        "00174=thread", "00175=background executor", "00176=save preferences",
+        "00177=read file", "00178=write file", "00179=zip archive", "00180=apk",
+        "00181=compile", "00182=build", "00183=debug", "00184=release",
+        "00185=sign apk", "00186=build error", "00187=stack trace", "00188=log",
+        "00189=fix bug", "00190=regression test", "00191=unit test", "00192=assert",
+        "00193=validate input", "00194=escape xml", "00195=encode url", "00196=timeout",
+        "00197=retry", "00198=cache", "00199=configuration", "00200=dependency"
     ).joinToString("\n")
+
+    private fun normalizeTokenLibrary(raw: String): String {
+        val meanings = linkedMapOf<String, String>()
+        raw.lines().forEach { line ->
+            val split = line.indexOf('=')
+            if (split <= 0) return@forEach
+            val code = line.substring(0, split).trim()
+            val meaning = line.substring(split + 1).trim()
+            if (meaning.isBlank()) return@forEach
+            if (code.matches(Regex("\\d{1,5}")) && !meanings.containsKey(code)) {
+                meanings[code] = meaning
+            } else {
+                meanings[""] = meaning
+            }
+        }
+        val used = meanings.keys.filter { it.isNotEmpty() }.toMutableSet()
+        val output = linkedMapOf<String, String>()
+        meanings.filterKeys { it.isNotEmpty() }.forEach { (code, meaning) -> output[code] = meaning }
+        val overflow = meanings[""]
+        if (overflow != null) {
+            var next = 1
+            raw.lines().forEach { line ->
+                val split = line.indexOf('=')
+                if (split <= 0) return@forEach
+                val code = line.substring(0, split).trim()
+                val meaning = line.substring(split + 1).trim()
+                if (code.matches(Regex("\\d{1,5}")) || meaning.isBlank()) return@forEach
+                while (next <= 99999 && used.contains(next.toString().padStart(5, '0'))) next++
+                if (next <= 99999) {
+                    val shortCode = next.toString().padStart(5, '0')
+                    output[shortCode] = meaning
+                    used.add(shortCode)
+                    next++
+                }
+            }
+        }
+        return output.entries.joinToString("\n") { it.key + "=" + it.value }
+    }
 
     private fun openImport() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -445,14 +528,14 @@ class MainActivity : Activity() {
         io.execute {
             try {
                 val encodePrompt = listOf(
-                    "You are APK Studio's numeric request encoder. This is a shared, persistent token library.",
+                    "You are APK Studio's compact token encoder. This is a shared, persistent token library. Every token code MUST contain 1 to 5 digits only.",
                     "Mode: " + mode,
                     "User request: " + request,
                     "Token library (code=meaning, one per line):",
                     initialLibrary,
-                    "Reuse an existing code when its meaning matches. Keep numeric literals readable after a hyphen, e.g. 0916820001747701-10.",
+                    "Reuse an existing code when its meaning matches. Never generate codes longer than five digits. Keep ordinary numeric literals readable after a hyphen, e.g. 00031-10.",
                     "Do not lose words, operators, conditions, negation, names, values, or constraints.",
-                    "For unknown concepts, create unique 16-digit codes and add them to new_entries. Do not change the meaning of existing codes.",
+                    "For unknown concepts, assign the next unused 5-digit code from 00001 through 99999 and add it to new_entries. Do not change the meaning of existing codes.",
                     "Begin encoded output with exactly " + mode + " on its own line.",
                     "Return ONLY JSON: {\"encoded\":\"...\",\"new_entries\":[{\"code\":\"16 digit code\",\"meaning\":\"plain meaning\"}]}"
                 ).joinToString("\n")
