@@ -55,7 +55,7 @@ object NumericLibrary {
         "numeric" to "1173", "code" to "1174", "format" to "1175", "version" to "1176",
         "name" to "1177", "path" to "1178", "line" to "1179", "word" to "1180",
         "words" to "1181", "numbering" to "1182", "contracted" to "1183", "compressed" to "1184"
-    )
+    ).mapValues { (_, code) -> code.padStart(5, '0') }
 
     fun promptLibrary(): String = tokens.entries.joinToString(", ") { "${it.key}=${PREFIX}${it.value}" } +
         ", literal-number=${PREFIX}<literal-number>"
