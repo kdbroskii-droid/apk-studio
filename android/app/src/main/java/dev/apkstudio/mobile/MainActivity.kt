@@ -31,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var appNameInput: EditText
     private lateinit var aiPrompt: EditText
     private lateinit var apiKey: EditText
+    private lateinit var claudeApiKey: EditText
     private lateinit var connectorUrlInput: EditText
     private lateinit var connectorTokenInput: EditText
     private lateinit var pipelinePrompt: EditText
@@ -146,6 +147,16 @@ class MainActivity : Activity() {
             setText(getPreferences(0).getString("gemini_key", "") ?: "")
         }
         ai.addView(apiKey, matchWrap())
+        ai.addView(fieldLabel("CLAUDE API KEY · OPTIONAL"))
+        claudeApiKey = textInput("Paste your Anthropic API key", true).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setText(getPreferences(0).getString("claude_api_key", "") ?: "")
+        }
+        ai.addView(claudeApiKey, matchWrap())
+        ai.addView(TextView(this).apply {
+            text = "Direct Claude API generation uses Anthropic API credits. If you only want the existing Claude connector/manual workflow, leave this blank."
+            textSize = 11f; setTextColor(muted); setPadding(0, 0, 0, dp(6))
+        })
         ai.addView(fieldLabel("CLAUDE MCP CONNECTOR · OPTIONAL"))
         ai.addView(TextView(this).apply {
             text = "Enter your Cloudflare Worker base URL (without /mcp) and its private token. This lets Claude return code directly to this app."
@@ -162,10 +173,12 @@ class MainActivity : Activity() {
         ai.addView(connectorTokenInput, matchWrap())
         ai.addView(button("Save AI settings", true) {
             val gemini = apiKey.text.toString().trim()
+            val claudeKey = claudeApiKey.text.toString().trim()
             val baseUrl = connectorUrlInput.text.toString().trim().trimEnd('/')
             val token = connectorTokenInput.text.toString().trim()
             getPreferences(0).edit()
                 .putString("gemini_key", gemini)
+                .putString("claude_api_key", claudeKey)
                 .putString("connector_url", baseUrl)
                 .putString("connector_token", token)
                 .apply()
@@ -196,6 +209,7 @@ class MainActivity : Activity() {
             maxLines = 10
         }
         ai.addView(claudePromptPreview, matchWrap())
+        ai.addView(button("Generate code with Claude API · uses credits", true) { generateWithClaudeApi() })
         ai.addView(button("Queue for Claude connector + wait", true) { queueForClaudeConnector() })
         ai.addView(TextView(this).apply {
             text = "After queueing, open Claude and ask it to process the pending APK Studio task. The app will load the returned file when Claude submits it."
@@ -521,6 +535,7 @@ class MainActivity : Activity() {
         val initialLibrary = libraryEditor.text.toString().trim()
         getPreferences(0).edit()
             .putString("gemini_key", gemini)
+            .putString("claude_api_key", claudeApiKey.text.toString().trim())
             .putString("token_library", initialLibrary).apply()
         status.text = "Gemini is encoding your request…"
         encodedPreview.text = "Encoding in progress…"
@@ -584,6 +599,68 @@ class MainActivity : Activity() {
         }
     }
 
+
+    private fun generateWithClaudeApi() {
+        val prompt = pendingClaudePrompt
+        val path = pendingTargetPath
+        val mode = pendingMode
+        val key = claudeApiKey.text.toString().trim()
+        if (prompt.isNullOrBlank() || path.isNullOrBlank() || mode.isNullOrBlank()) {
+            status.text = "Run +s or +q with Gemini first so Claude has a complete prompt."
+            return
+        }
+        if (key.isBlank()) {
+            status.text = "Enter your Anthropic API key in AI settings, then tap Save AI settings."
+            return
+        }
+        getPreferences(0).edit().putString("claude_api_key", key).apply()
+        status.text = "Claude is generating the complete file…"
+        io.execute {
+            try {
+                val generated = callClaudeApi(key, prompt)
+                runOnUiThread { applyConnectorResponse(path, mode, generated) }
+            } catch (e: Exception) {
+                runOnUiThread { status.text = "Claude API failed: " + (e.message ?: "Unknown error") }
+            }
+        }
+    }
+
+    private fun callClaudeApi(key: String, instruction: String): String {
+        val conn = URL("https://api.anthropic.com/v1/messages").openConnection() as HttpURLConnection
+        try {
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 20000
+            conn.readTimeout = 90000
+            conn.doOutput = true
+            conn.setRequestProperty("x-api-key", key)
+            conn.setRequestProperty("anthropic-version", "2023-06-01")
+            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            val payload = JSONObject()
+                .put("model", "claude-sonnet-4-20250514")
+                .put("max_tokens", 12000)
+                .put("messages", JSONArray().put(JSONObject()
+                    .put("role", "user")
+                    .put("content", instruction)))
+            conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+            if (code !in 200..299) throw IOException("HTTP " + code + ": " + responseText.take(350))
+            val response = JSONObject(responseText)
+            val content = response.optJSONArray("content") ?: throw IOException("Claude returned no content.")
+            val result = StringBuilder()
+            for (i in 0 until content.length()) {
+                val block = content.optJSONObject(i) ?: continue
+                if (block.optString("type") == "text") result.append(block.optString("text"))
+            }
+            val generated = result.toString().trim()
+            if (generated.isBlank()) throw IOException("Claude returned an empty file.")
+            return generated.replace(Regex("^\\x60{3}[a-zA-Z0-9_-]*\\s*"), "")
+                .replace(Regex("\\s*\\x60{3}$"), "").trim()
+        } finally {
+            conn.disconnect()
+        }
+    }
 
     private fun queueForClaudeConnector() {
         val prompt = pendingClaudePrompt
